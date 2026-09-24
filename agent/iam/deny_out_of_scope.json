@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyAnyModelButTheConfiguredOne",
+      "Effect": "Deny",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:CountTokens"
+      ],
+      "NotResource": [
+        "arn:aws:bedrock:*:*:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0"
+      ]
+    },
+    {
+      "Sid": "DenyMemoryRecordDeletion",
+      "Effect": "Deny",
+      "Action": "bedrock-agentcore:DeleteMemoryRecord",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyConfigurationBundleMutation",
+      "Effect": "Deny",
+      "Action": [
+        "bedrock-agentcore:CreateConfigurationBundle",
+        "bedrock-agentcore:UpdateConfigurationBundle",
+        "bedrock-agentcore:DeleteConfigurationBundle"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

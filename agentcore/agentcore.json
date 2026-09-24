@@ -1,0 +1,273 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "csagent",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "csagent",
+    "project": "csagent"
+  },
+  "runtimes": [
+    {
+      "name": "csagent_dev_support",
+      "description": "Customer Support Agent (Strands) - order lookup, customer lookup, refunds",
+      "build": "CodeZip",
+      "entrypoint": "agent.py",
+      "codeLocation": "agent/",
+      "runtimeVersion": "PYTHON_3_12",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "authorizerType": "CUSTOM_JWT",
+      "requestHeaderAllowlist": [
+        "Authorization"
+      ],
+      "additionalPolicies": [
+        "iam/deny_out_of_scope.json"
+      ],
+      "envVars": [
+        {
+          "name": "BEDROCK_MODEL_ID",
+          "value": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        },
+        {
+          "name": "STAGE",
+          "value": "dev"
+        },
+        {
+          "name": "COGNITO_ISSUER",
+          "value": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_emK8twNiX"
+        },
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "value": "39fjh486bt28l3urp8rqhhhcdc"
+        }
+      ],
+      "instrumentation": {
+        "enableOtel": true
+      },
+      "lifecycleConfiguration": {
+        "idleRuntimeSessionTimeout": 900,
+        "maxLifetime": 3600
+      },
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      },
+      "authorizerConfiguration": {
+        "customJwtAuthorizer": {
+          "discoveryUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_emK8twNiX/.well-known/openid-configuration",
+          "allowedAudience": [
+            "39fjh486bt28l3urp8rqhhhcdc"
+          ]
+        }
+      }
+    }
+  ],
+  "memories": [
+    {
+      "name": "csagent_dev_memory",
+      "eventExpiryDuration": 30,
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      },
+      "strategies": [
+        {
+          "type": "USER_PREFERENCE",
+          "name": "customer_preferences",
+          "description": "Stated preferences: contact channel, language, regions, delivery choices.",
+          "namespaceTemplates": [
+            "/preferences/{actorId}/"
+          ]
+        },
+        {
+          "type": "SEMANTIC",
+          "name": "customer_facts",
+          "description": "Durable facts the customer states about themselves or their account.",
+          "namespaceTemplates": [
+            "/facts/{actorId}/"
+          ]
+        }
+      ]
+    }
+  ],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [
+    {
+      "name": "csagent-dev-tools",
+      "description": "Business tools for the customer support agent, exposed as MCP tools",
+      "protocolType": "MCP",
+      "authorizerType": "AWS_IAM",
+      "enableSemanticSearch": false,
+      "exceptionLevel": "DEBUG",
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      },
+      "targets": [
+        {
+          "name": "orders",
+          "targetType": "lambda",
+          "compute": {
+            "host": "Lambda",
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
+            "implementation": {
+              "language": "Python",
+              "path": "tools/",
+              "handler": "get_order.handler.lambda_handler"
+            },
+            "iamPolicy": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadOrdersOnly",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
+                }
+              ]
+            }
+          },
+          "toolDefinitions": [
+            {
+              "name": "get_order",
+              "description": "Look up a single order: its status, why it is in that status, the expected delivery date, the items, and the total paid. Use this for any question about an order, including where it is, why it is late, and what was paid. Returns total_cents as an integer number of US cents (24999 means $249.99).",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "order_id": {
+                    "type": "string",
+                    "description": "Order identifier in the form ORD-<digits>, e.g. ORD-1001. If the customer says a bare number, prefix it with ORD-."
+                  }
+                },
+                "required": [
+                  "order_id"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "customers",
+          "targetType": "lambda",
+          "compute": {
+            "host": "Lambda",
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
+            "implementation": {
+              "language": "Python",
+              "path": "tools/",
+              "handler": "get_customer.handler.lambda_handler"
+            },
+            "iamPolicy": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadCustomersOnly",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-customers"
+                }
+              ]
+            }
+          },
+          "toolDefinitions": [
+            {
+              "name": "get_customer",
+              "description": "Look up a customer account: name, email, loyalty tier, preferred contact channel, and the IDs of the orders they have placed. Use this for questions about the person rather than about a specific order.",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "description": "Customer identifier in the form CUST-<digits>, e.g. CUST-001."
+                  }
+                },
+                "required": [
+                  "customer_id"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "refunds",
+          "targetType": "lambda",
+          "compute": {
+            "host": "Lambda",
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
+            "implementation": {
+              "language": "Python",
+              "path": "tools/",
+              "handler": "process_refund.handler.lambda_handler"
+            },
+            "iamPolicy": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadOrderBeingRefunded",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
+                },
+                {
+                  "Sid": "WriteRefundLedger",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-refunds"
+                }
+              ]
+            }
+          },
+          "toolDefinitions": [
+            {
+              "name": "process_refund",
+              "description": "Refund money against an order. This moves money. The amount is validated against the order total and against the automatic-approval ceiling before anything is written; refunds above the ceiling are declined here, not by the assistant. Calling it twice with the same idempotency_key returns the first refund instead of issuing a second.",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "order_id": {
+                    "type": "string",
+                    "description": "Order to refund, in the form ORD-<digits>."
+                  },
+                  "amount_cents": {
+                    "type": "integer",
+                    "description": "Amount to refund as an integer number of US cents. $249.99 is 24999. Must be greater than zero and not more than the order total."
+                  },
+                  "idempotency_key": {
+                    "type": "string",
+                    "description": "Stable key identifying this refund attempt. Derived by the caller from the order, the amount and the session; reused verbatim on any retry."
+                  }
+                },
+                "required": [
+                  "order_id",
+                  "amount_cents",
+                  "idempotency_key"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "capacityProviders": [],
+  "payments": []
+}

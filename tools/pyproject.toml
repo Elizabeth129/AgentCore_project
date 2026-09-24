@@ -1,0 +1,11 @@
+[project]
+name = "csagent-tools"
+version = "0.1.0"
+description = "Lambda-backed business tools exposed as MCP tools through AgentCore Gateway"
+requires-python = ">=3.12"
+dependencies = [
+    # Pinned rather than relying on the Lambda runtime's bundled boto3, so the
+    # retry configuration and the DynamoDB conditional-write behaviour are the
+    # same versions we tested against.
+    "boto3 >= 1.35.0",
+]

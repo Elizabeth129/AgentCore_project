@@ -1,0 +1,43 @@
+{
+  "targets": {
+    "default": {
+      "resources": {
+        "runtimes": {
+          "csagent_dev_support": {
+            "runtimeId": "csagent_csagent_dev_support-zDg6vM8kZf",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:runtime/csagent_csagent_dev_support-zDg6vM8kZf",
+            "roleArn": "arn:aws:iam::324673385933:role/AgentCore-csagent-default-ApplicationAgentCsagentDe-tUux3PWVJYt6"
+          }
+        },
+        "memories": {
+          "csagent_dev_memory": {
+            "memoryId": "csagent_csagent_dev_memory-gBHIQB3MeT",
+            "memoryArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:memory/csagent_csagent_dev_memory-gBHIQB3MeT"
+          }
+        },
+        "mcp": {
+          "gateways": {
+            "csagent-dev-tools": {
+              "gatewayId": "csagent-csagent-dev-tools-bppyia5tzx",
+              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx",
+              "gatewayUrl": "https://csagent-csagent-dev-tools-bppyia5tzx.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+              "targets": {
+                "customers": {
+                  "targetId": "TNSWW58M4W"
+                },
+                "orders": {
+                  "targetId": "R41VIFQEM9"
+                },
+                "refunds": {
+                  "targetId": "XRMTXWZVGO"
+                }
+              }
+            }
+          }
+        },
+        "stackName": "AgentCore-csagent-default",
+        "deployHash": "91eadcff7f760145"
+      }
+    }
+  }
+}
