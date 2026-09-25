@@ -20,7 +20,8 @@
       "protocol": "HTTP",
       "authorizerType": "CUSTOM_JWT",
       "requestHeaderAllowlist": [
-        "Authorization"
+        "Authorization",
+        "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Operation-Id"
       ],
       "additionalPolicies": [
         "iam/deny_out_of_scope.json"
@@ -33,6 +34,10 @@
         {
           "name": "STAGE",
           "value": "dev"
+        },
+        {
+          "name": "TOOL_CALL_BUDGET",
+          "value": "12"
         },
         {
           "name": "COGNITO_ISSUER",
@@ -248,7 +253,11 @@
                   },
                   "idempotency_key": {
                     "type": "string",
-                    "description": "Stable key identifying this refund attempt. Derived by the caller from the order, the amount and the session; reused verbatim on any retry."
+                    "description": "Stable key identifying this refund attempt. Derived by the caller from the operation (or session), the order and the amount; reused verbatim on any retry. A repeat of the same key returns the original refund and never creates a second one."
+                  },
+                  "operation_id": {
+                    "type": "string",
+                    "description": "Optional. The caller's retry token for the wider operation, e.g. operation-123. Recorded with the refund so a retry can be traced back to the request it belongs to; it does not affect the idempotency decision, which is made on idempotency_key alone."
                   }
                 },
                 "required": [

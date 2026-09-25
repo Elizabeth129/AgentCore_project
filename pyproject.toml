@@ -1,0 +1,15 @@
+[project]
+name = "csagent-workspace"
+version = "0.1.0"
+description = "Customer Support Agent on Amazon Bedrock AgentCore — dev workspace"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "boto3>=1.35.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The agent and the Lambdas are deployed as separate code bundles with their own
+# roots, so neither is an installed package here. Put both on sys.path instead.
+pythonpath = ["agent", "tools"]
+addopts = "-q"

@@ -4,9 +4,10 @@ A Strands agent deployed on AgentCore Runtime that answers order and account
 questions and processes refunds. See `CLAUDE.md` for the full architecture and
 the acceptance criteria this repo is built against.
 
-**Status: Identity / IAM complete.** Callers authenticate with a Cognito JWT,
-the agent reaches its tools through an AgentCore Gateway, and it remembers
-customers across sessions. The Cedar policy is still ahead.
+**Status: Observability complete.** Callers authenticate with a Cognito JWT, the
+agent reaches its tools through an AgentCore Gateway with retry and backoff,
+refunds are idempotent, it remembers customers across sessions, and every failure
+class is traceable to a root cause. The Cedar policy is still ahead.
 
 ```
 caller ──Cognito JWT──▶ Runtime ──SigV4/MCP──▶ Gateway ──▶ 3 Lambdas ──▶ DynamoDB
@@ -37,15 +38,19 @@ cp .env.example .env      # then fill it in
 | `agent/agent.py` | `BedrockAgentCoreApp` entrypoint, the Strands agent, and the `process_refund` wrapper |
 | `agent/gateway_client.py` | SigV4-signed MCP client for the Gateway |
 | `agent/prompts.py` | System prompt (behaviour only — not a security control) |
+| `agent/retry.py` | Backoff with jitter, and what counts as retryable |
+| `agent/telemetry.py` | Custom span attributes (the domain fields in a trace) |
 | `agent/identity.py` | Reads the customer from the verified JWT claims |
 | `agent/iam/deny_out_of_scope.json` | Explicit-Deny overlay narrowing the execution role |
 | `agent/memory.py` | AgentCore Memory session manager |
 | `agent/idempotency.py` | Deterministic refund keys, derived outside the model |
 | `tools/<tool>/handler.py` | One Lambda per business tool |
-| `tools/common/` | Structured errors, JSON logging, DynamoDB access, Gateway glue |
+| `tools/common/` | Structured errors, JSON logging, DynamoDB access, Gateway glue, fault injection |
+| `tests/unit/` | Retry, idempotency and refund-decision tests (no AWS needed) |
 | `scripts/create_tables.py`, `scripts/seed_data.py` | DynamoDB setup (boto3) |
 | `scripts/create_cognito.py`, `scripts/get_token.py` | Cognito pool, test user, and minting a JWT |
 | `scripts/inspect_memory.py` | Read STM events and extracted LTM records |
+| `scripts/inject_fault.py` | Turn a tool Lambda's fault injection on and off |
 | `agentcore/agentcore.json` | Runtime, Gateway, targets and per-Lambda IAM |
 | `agentcore/cdk/` | Generated CDK app (do not hand-edit; edit `agentcore.json`) |
 | `docs/iam.md` | Every role and why each permission exists |
@@ -75,22 +80,98 @@ scripts create.
 
 ## How a tool call flows
 
-1. The model picks a tool. Two of them, `orders___get_order` and
-   `customers___get_customer`, come straight from the Gateway's tool list.
-2. `process_refund` is different: the Gateway tool `refunds___process_refund` is
-   **hidden from the model** and wrapped by a local tool in `agent/agent.py`.
-   The wrapper derives `idempotency_key` from the order, the amount and the
-   session, so a re-plan or a retry cannot produce a second refund.
-3. The Runtime SigV4-signs the MCP request with its execution role, which holds
+1. The model picks one of three tools. **None of the Gateway's tools are exposed
+   to the model directly** — `agent/agent.py` defines `get_order`,
+   `get_customer` and `process_refund` as wrappers. That indirection is what
+   gives every call a timeout, retry with backoff, and (for refunds) an
+   idempotency key the model cannot choose.
+2. The Runtime SigV4-signs the MCP request with its execution role, which holds
    `bedrock-agentcore:InvokeGateway` on this gateway and nothing else.
-4. The Gateway invokes the tool's Lambda; each Lambda has its own role with
+3. The Gateway invokes the tool's Lambda; each Lambda has its own role with
    access to only the tables it needs (`docs/iam.md`).
-5. Tools return `{"status": "success", ...}` or
+4. Tools return `{"status": "success", ...}` or
    `{"status": "error", "code", "message", "retryable"}` — never prose.
 
 The $1,000 refund ceiling is enforced in the `process_refund` Lambda, against
 both the requested amount and the order total in DynamoDB. The system prompt
 mentions it only so the agent can explain itself; it is not the control.
+
+## Reliability
+
+### Retry, and what is *not* retried
+
+`agent/retry.py` retries a tool call at most **3 times**, waiting a
+**full-jitter** delay between attempts — uniform in `[0, min(4s, 0.25s·2ⁿ)]`
+rather than a fixed backoff, so concurrent sessions hitting a throttled
+dependency do not march back in lockstep.
+
+Only transient failures are repeated. The `retryable` flag on every tool result
+is the contract:
+
+| Result | Behaviour |
+|---|---|
+| `status: success` | returned immediately |
+| `status: error`, `retryable: false` (`ORDER_NOT_FOUND`, `REFUND_LIMIT_EXCEEDED`, …) | returned immediately — repeating it would fail identically |
+| `status: error`, `retryable: true` (`DEPENDENCY_UNAVAILABLE`, transport failure) | retried with backoff |
+| still failing after 3 attempts | the last real error is handed to the model, which explains it to the customer |
+
+An unreadable response is treated as **not** retryable: that is far more likely
+to be a bug than a blip, and retrying would triple the damage.
+
+### Idempotency
+
+`process_refund` requires an `idempotency_key`. The Refunds table is keyed on it
+and the write is conditional on `attribute_not_exists(idempotency_key)`, so a
+repeat loses the race by design and gets the original refund back with
+`duplicate: true`. Nothing is ever refunded twice.
+
+The key is derived by the agent, never by the model, and must survive two levels
+of retry:
+
+- **within a turn** — every attempt of one tool call reuses one key;
+- **across whole invocations** — a caller whose request timed out re-invokes the
+  agent with the same **operation id**
+  (`-H "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Operation-Id: operation-123"`),
+  and both invocations derive the same key despite different sessions.
+
+The key is `sha256(operation-or-session | order | amount)` rather than the
+operation id verbatim, because one operation may legitimately refund two
+different orders and those must not collapse into one record. The operation id
+is stored on the refund so the link back to the request survives.
+
+### Trying it
+
+```bash
+pytest tests/unit -q          # 44 tests: retry classification, backoff, idempotency
+```
+
+Against the deployed backend, the same key three times:
+
+| Call | `refund_id` | `duplicate` |
+|---|---|---|
+| 1 | `RFND-3A5A577A35AA` | `false` |
+| 2 | `RFND-3A5A577A35AA` | `true` |
+| 3 | `RFND-3A5A577A35AA` | `true` |
+
+One row in DynamoDB under `idempotency_key = "operation-123"`.
+
+Fault injection drives the retry path on demand (`tools/common/faults.py`):
+
+```bash
+python scripts/inject_fault.py --function csagent-orders --mode throttle
+agentcore invoke --bearer-token "$TOKEN" --prompt "What is the status of order ORD-1001?"
+python scripts/inject_fault.py --function csagent-orders --clear    # always
+```
+
+Modes: `error`, `throttle`, `timeout`, `business`. Verified:
+
+| Mode | Log | Agent's answer |
+|---|---|---|
+| `throttle` (retryable) | `attempt=1 retrying`, `2 retrying`, `3 final` | "temporarily unavailable… please try again in a few moments" |
+| `business` (not retryable) | `attempt=1 final` — **no retry** | "This isn't something I can work around by retrying." |
+
+`FAULT_MODE` is inert unless the stage is `dev` or `test`, so the production
+path cannot be switched into failing by an environment variable alone.
 
 ## How memory works
 
@@ -204,16 +285,29 @@ falls back to it when the injected `AGENTCORE_GATEWAY_*_URL` is absent. Set
 `MEMORY_ID` and `ACTOR_ID` the same way for memory; without them the agent still
 answers, just with no recall.
 
-## Logs and traces
+## Logs, traces and metrics
 
 ```bash
-agentcore logs
-agentcore traces
+agentcore traces list --since 1h                  # trace IDs + session IDs
+agentcore logs --since 30m --query "tool_error"
 aws logs tail /aws/lambda/csagent-refunds --follow
+aws cloudwatch list-metrics --namespace csagent
 ```
 
 Lambda logs are one JSON object per line, with events such as
-`refund_processed`, `refund_denied` and `duplicate_refund_prevented`.
+`refund_processed`, `refund_denied` and `duplicate_refund_prevented`. Each tool
+call's `execute_tool` span carries `tool.outcome`, `error.code`, `tool.attempts`
+and `loop.tool_calls`, so a trace says what a call was doing and why it failed.
+
+Metrics in namespace `csagent` (dimensions `Stage`, `Tool`): `ToolInvocations`,
+`ToolErrors`, `RefundsProcessed`, `RefundsDenied`, `DuplicateRefundPrevented`.
+
+**[docs/observability.md](docs/observability.md) is the debugging guide** — for
+each of tool timeout, invalid parameters, wrong tool selection, unhandled
+exception and LLM loop, it gives the span to read, the attribute that identifies
+it, a Logs Insights query, and a real trace ID from a reproduced failure. Two
+traps it documents up front: `gen_ai.tool.status` reads `success` on failed tool
+calls, and X-Ray's `error`/`fault` flags are not set on tool spans.
 
 Transaction Search was enabled for the account by the first `agentcore deploy`;
 it takes ~10 minutes before traces are indexed.

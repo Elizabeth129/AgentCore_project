@@ -14,6 +14,7 @@ project, where `<NAME>` is the gateway name upper-cased with `-` replaced by `_`
 from __future__ import annotations
 
 import os
+import re
 from typing import Iterator
 
 import httpx
@@ -75,16 +76,17 @@ def gateway_url() -> str:
     return url
 
 
-def build_gateway_client(*, rejected_tools: list[str] | None = None) -> MCPClient:
+def build_gateway_client(*, expose_to_model: bool = False) -> MCPClient:
     """An MCPClient for the Gateway.
 
-    `rejected_tools` hides tools from the model. `process_refund` is hidden this
-    way: it is reached only through the wrapper in `agent/agent.py`, which
-    supplies an idempotency key the model cannot choose. See CLAUDE.md §3.
+    By default every Gateway tool is hidden from the model. The agent exposes
+    its own wrappers instead (`agent/agent.py`), which is what lets each call
+    carry retry with backoff, a timeout, and — for refunds — an idempotency key
+    the model cannot choose. See CLAUDE.md §3 and §8.
     """
     return MCPClient(
         url=gateway_url(),
         auth_provider=SigV4Auth_(),
-        tool_filters={"rejected": rejected_tools} if rejected_tools else None,
+        tool_filters=None if expose_to_model else {"rejected": [re.compile(r".*")]},
         startup_timeout=30,
     )
