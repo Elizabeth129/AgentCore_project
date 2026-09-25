@@ -158,6 +158,22 @@ def _unwrap(result: Any, *, tool_label: str) -> dict[str, Any]:
             for block in result.get("content") or []
             if isinstance(block, dict)
         )
+        # The Cedar policy engine refuses the call before the Lambda runs. This
+        # is an authorization decision, not a fault: it will be identical every
+        # time, so retrying is both pointless and exactly the wrong signal to
+        # send about a refused refund.
+        if "policy enforcement" in detail or "Tool Execution Denied" in detail:
+            return {
+                "status": "error",
+                "code": "POLICY_DENIED",
+                "message": (
+                    f"{tool_label} was refused by policy. This is not something to retry "
+                    "or work around; tell the customer it needs human approval."
+                ),
+                "retryable": False,
+                "policy_detail": detail[:300],
+            }
+
         # The Gateway validates arguments against the tool schema before the
         # Lambda runs, so a type error or a missing required field comes back
         # here rather than as a tool result. Those are permanent: the same
@@ -270,9 +286,11 @@ def get_order(order_id: str) -> dict[str, Any]:
             If the customer says a bare number, prefix it with `ORD-`.
 
     Returns:
-        On success the order record, with `total_cents` as an integer number of
-        US cents (24999 means $249.99). On failure `status: "error"` with a
-        `code` such as `ORDER_NOT_FOUND`.
+        On success the order record. The delivery state is `order_status` (for
+        example `DELAYED` or `DELIVERED`) with the reason in `status_reason`; the
+        top-level `status` says only whether the lookup worked. `total_cents` is
+        an integer number of US cents (24999 means $249.99). On failure
+        `status: "error"` with a `code` such as `ORDER_NOT_FOUND`.
     """
     log.info("tool_call tool=get_order order_id=%s", order_id)
     tel.set_attributes(**{tel.TOOL_NAME: "get_order", tel.ORDER_ID: order_id})

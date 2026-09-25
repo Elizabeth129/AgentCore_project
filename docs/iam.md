@@ -157,5 +157,10 @@ write loses to a duplicate key.
    currently return any order by id. That belongs with the Cedar policy step.
 2. **No refresh-token handling** in `scripts/get_token.py`; it signs in afresh
    each time. Fine for tests, not a pattern for a real client.
-3. **The Cedar policy engine does not exist yet.** The refund ceiling is
-   enforced only in the `process_refund` Lambda.
+3. **Cross-customer reads are not authorized.** The Cedar policies scope which
+   *actions* are allowed, not which rows. A valid `CUST-001` token can still ask
+   for `ORD-123`, which belongs to `CUST-002`. See
+   [docs/security.md](security.md) §7 — this is now the most serious open item.
+
+The Cedar policy engine (`csagent_dev_policy`, ENFORCE) is deployed and holds the
+refund ceiling at the Gateway. See [docs/security.md](security.md).

@@ -56,6 +56,24 @@ def set_attributes(**attributes: Any) -> None:
         span.set_attribute(key, value)
 
 
+def policy_decision(status: str | None, code: str | None) -> str | None:
+    """Which authorization layer decided this call, for `policy.decision`.
+
+    `DENY_GATEWAY_POLICY`  the Cedar engine refused it before the Lambda ran.
+    `DENY_TOOL_VALIDATION` the Lambda's own ceiling check refused it — meaning
+                           the Cedar policy did *not* catch it first, which is
+                           worth noticing even though the outcome was correct.
+    `ALLOW`                the call was authorized and ran.
+    """
+    if code == "POLICY_DENIED":
+        return "DENY_GATEWAY_POLICY"
+    if code in {"REFUND_LIMIT_EXCEEDED", "AMOUNT_EXCEEDS_ORDER_TOTAL"}:
+        return "DENY_TOOL_VALIDATION"
+    if status == "success":
+        return "ALLOW"
+    return None
+
+
 def record_tool_result(
     *,
     tool_name: str,
@@ -69,15 +87,21 @@ def record_tool_result(
     leaves the span looking successful.
     """
     status = result.get("status")
+    code = result.get("code")
     set_attributes(
         **{
             TOOL_NAME: tool_name,
             TOOL_OUTCOME: status,
             TOOL_ATTEMPTS: attempts,
-            ERROR_CODE: result.get("code"),
+            ERROR_CODE: code,
             ERROR_RETRYABLE: result.get("retryable"),
             REFUND_ID: result.get("refund_id"),
             TOOL_DUPLICATE: result.get("duplicate"),
+            # Which layer decided. A refund can be stopped by Cedar at the
+            # Gateway or by the Lambda's own check; the trace should say which,
+            # because "the policy is working" and "the policy never ran but the
+            # Lambda caught it" are very different states.
+            POLICY_DECISION: policy_decision(status, code),
         }
     )
 

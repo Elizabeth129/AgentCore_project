@@ -25,18 +25,46 @@
                 "customers": {
                   "targetId": "TNSWW58M4W"
                 },
-                "orders": {
-                  "targetId": "R41VIFQEM9"
-                },
                 "refunds": {
                   "targetId": "XRMTXWZVGO"
+                },
+                "orders": {
+                  "targetId": "R41VIFQEM9"
                 }
               }
             }
           }
         },
+        "policyEngines": {
+          "csagent_dev_policy": {
+            "policyEngineId": "csagent_csagent_dev_policy-_2rcunfnmb",
+            "policyEngineArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:policy-engine/csagent_csagent_dev_policy-_2rcunfnmb"
+          }
+        },
+        "policies": {
+          "csagent_dev_policy/permit_get_order": {
+            "policyId": "permit_get_order-af_79kjm_q",
+            "policyArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:policy-engine/csagent_csagent_dev_policy-_2rcunfnmb/policy/permit_get_order-af_79kjm_q",
+            "engineName": "csagent_dev_policy"
+          },
+          "csagent_dev_policy/permit_get_customer": {
+            "policyId": "permit_get_customer-gcwdx8s7zj",
+            "policyArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:policy-engine/csagent_csagent_dev_policy-_2rcunfnmb/policy/permit_get_customer-gcwdx8s7zj",
+            "engineName": "csagent_dev_policy"
+          },
+          "csagent_dev_policy/refund_limit": {
+            "policyId": "refund_limit-hq8mw4f6p5",
+            "policyArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:policy-engine/csagent_csagent_dev_policy-_2rcunfnmb/policy/refund_limit-hq8mw4f6p5",
+            "engineName": "csagent_dev_policy"
+          },
+          "csagent_dev_policy/forbid_refund_over_limit": {
+            "policyId": "forbid_refund_over_limit-2sbqrsx_br",
+            "policyArn": "arn:aws:bedrock-agentcore:us-east-1:324673385933:policy-engine/csagent_csagent_dev_policy-_2rcunfnmb/policy/forbid_refund_over_limit-2sbqrsx_br",
+            "engineName": "csagent_dev_policy"
+          }
+        },
         "stackName": "AgentCore-csagent-default",
-        "deployHash": "8bc2b53de5ec29d1"
+        "deployHash": "8966b9f283ca9a68"
       }
     }
   }

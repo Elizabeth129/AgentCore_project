@@ -31,6 +31,11 @@ def get_order(args: dict[str, Any]) -> dict[str, Any]:
     order = get_item(ORDERS_TABLE, {"order_id": order_id})
     if order is None:
         return errors.err(errors.ORDER_NOT_FOUND, f"No order with id {order_id}.")
+
+    # The order's own `status` ("DELAYED", "DELIVERED") is renamed, because the
+    # envelope owns `status` and a collision would hide whether the call itself
+    # succeeded. `errors.ok` rejects the clash rather than letting it through.
+    order["order_status"] = order.pop("status", None)
     return errors.ok(**order)
 
 

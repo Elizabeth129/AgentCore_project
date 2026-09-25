@@ -16,16 +16,6 @@
       "entrypoint": "agent.py",
       "codeLocation": "agent/",
       "runtimeVersion": "PYTHON_3_12",
-      "networkMode": "PUBLIC",
-      "protocol": "HTTP",
-      "authorizerType": "CUSTOM_JWT",
-      "requestHeaderAllowlist": [
-        "Authorization",
-        "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Operation-Id"
-      ],
-      "additionalPolicies": [
-        "iam/deny_out_of_scope.json"
-      ],
       "envVars": [
         {
           "name": "BEDROCK_MODEL_ID",
@@ -48,17 +38,19 @@
           "value": "39fjh486bt28l3urp8rqhhhcdc"
         }
       ],
+      "networkMode": "PUBLIC",
       "instrumentation": {
         "enableOtel": true
       },
-      "lifecycleConfiguration": {
-        "idleRuntimeSessionTimeout": 900,
-        "maxLifetime": 3600
-      },
-      "tags": {
-        "project": "csagent",
-        "stage": "dev"
-      },
+      "protocol": "HTTP",
+      "requestHeaderAllowlist": [
+        "Authorization",
+        "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Operation-Id"
+      ],
+      "additionalPolicies": [
+        "iam/deny_out_of_scope.json"
+      ],
+      "authorizerType": "CUSTOM_JWT",
       "authorizerConfiguration": {
         "customJwtAuthorizer": {
           "discoveryUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_emK8twNiX/.well-known/openid-configuration",
@@ -66,6 +58,14 @@
             "39fjh486bt28l3urp8rqhhhcdc"
           ]
         }
+      },
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      },
+      "lifecycleConfiguration": {
+        "idleRuntimeSessionTimeout": 900,
+        "maxLifetime": 3600
       }
     }
   ],
@@ -73,10 +73,6 @@
     {
       "name": "csagent_dev_memory",
       "eventExpiryDuration": 30,
-      "tags": {
-        "project": "csagent",
-        "stage": "dev"
-      },
       "strategies": [
         {
           "type": "USER_PREFERENCE",
@@ -94,7 +90,11 @@
             "/facts/{actorId}/"
           ]
         }
-      ]
+      ],
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      }
     }
   ],
   "knowledgeBases": [],
@@ -104,45 +104,16 @@
   "agentCoreGateways": [
     {
       "name": "csagent-dev-tools",
-      "description": "Business tools for the customer support agent, exposed as MCP tools",
       "protocolType": "MCP",
-      "authorizerType": "AWS_IAM",
-      "enableSemanticSearch": false,
-      "exceptionLevel": "DEBUG",
-      "tags": {
-        "project": "csagent",
-        "stage": "dev"
-      },
+      "description": "Business tools for the customer support agent, exposed as MCP tools",
       "targets": [
         {
           "name": "orders",
           "targetType": "lambda",
-          "compute": {
-            "host": "Lambda",
-            "pythonVersion": "PYTHON_3_12",
-            "timeout": 10,
-            "memorySize": 256,
-            "implementation": {
-              "language": "Python",
-              "path": "tools/",
-              "handler": "get_order.handler.lambda_handler"
-            },
-            "iamPolicy": {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Sid": "ReadOrdersOnly",
-                  "Effect": "Allow",
-                  "Action": "dynamodb:GetItem",
-                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
-                }
-              ]
-            }
-          },
           "toolDefinitions": [
             {
               "name": "get_order",
-              "description": "Look up a single order: its status, why it is in that status, the expected delivery date, the items, and the total paid. Use this for any question about an order, including where it is, why it is late, and what was paid. Returns total_cents as an integer number of US cents (24999 means $249.99).",
+              "description": "Look up a single order. Use this for any question about an order, including where it is, why it is late, and what was paid. The order's delivery state is in `order_status` (for example DELAYED or DELIVERED) and the reason in `status_reason`; the top-level `status` field reports only whether the lookup itself succeeded. `total_cents` is an integer number of US cents (24999 means $249.99).",
               "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -156,33 +127,33 @@
                 ]
               }
             }
-          ]
-        },
-        {
-          "name": "customers",
-          "targetType": "lambda",
+          ],
           "compute": {
             "host": "Lambda",
-            "pythonVersion": "PYTHON_3_12",
-            "timeout": 10,
-            "memorySize": 256,
             "implementation": {
               "language": "Python",
               "path": "tools/",
-              "handler": "get_customer.handler.lambda_handler"
+              "handler": "get_order.handler.lambda_handler"
             },
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
             "iamPolicy": {
               "Version": "2012-10-17",
               "Statement": [
                 {
-                  "Sid": "ReadCustomersOnly",
+                  "Sid": "ReadOrdersOnly",
                   "Effect": "Allow",
                   "Action": "dynamodb:GetItem",
-                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-customers"
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
                 }
               ]
             }
-          },
+          }
+        },
+        {
+          "name": "customers",
+          "targetType": "lambda",
           "toolDefinitions": [
             {
               "name": "get_customer",
@@ -200,42 +171,33 @@
                 ]
               }
             }
-          ]
-        },
-        {
-          "name": "refunds",
-          "targetType": "lambda",
+          ],
           "compute": {
             "host": "Lambda",
-            "pythonVersion": "PYTHON_3_12",
-            "timeout": 10,
-            "memorySize": 256,
             "implementation": {
               "language": "Python",
               "path": "tools/",
-              "handler": "process_refund.handler.lambda_handler"
+              "handler": "get_customer.handler.lambda_handler"
             },
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
             "iamPolicy": {
               "Version": "2012-10-17",
               "Statement": [
                 {
-                  "Sid": "ReadOrderBeingRefunded",
+                  "Sid": "ReadCustomersOnly",
                   "Effect": "Allow",
                   "Action": "dynamodb:GetItem",
-                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
-                },
-                {
-                  "Sid": "WriteRefundLedger",
-                  "Effect": "Allow",
-                  "Action": [
-                    "dynamodb:GetItem",
-                    "dynamodb:PutItem"
-                  ],
-                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-refunds"
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-customers"
                 }
               ]
             }
-          },
+          }
+        },
+        {
+          "name": "refunds",
+          "targetType": "lambda",
           "toolDefinitions": [
             {
               "name": "process_refund",
@@ -267,12 +229,97 @@
                 ]
               }
             }
-          ]
+          ],
+          "compute": {
+            "host": "Lambda",
+            "implementation": {
+              "language": "Python",
+              "path": "tools/",
+              "handler": "process_refund.handler.lambda_handler"
+            },
+            "pythonVersion": "PYTHON_3_12",
+            "timeout": 10,
+            "memorySize": 256,
+            "iamPolicy": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadOrderBeingRefunded",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-orders"
+                },
+                {
+                  "Sid": "WriteRefundLedger",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": "arn:aws:dynamodb:*:*:table/csagent-dev-refunds"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "authorizerType": "AWS_IAM",
+      "enableSemanticSearch": false,
+      "exceptionLevel": "DEBUG",
+      "policyEngineConfiguration": {
+        "policyEngineName": "csagent_dev_policy",
+        "mode": "ENFORCE"
+      },
+      "tags": {
+        "project": "csagent",
+        "stage": "dev"
+      }
+    }
+  ],
+  "policyEngines": [
+    {
+      "name": "csagent_dev_policy",
+      "description": "Deterministic authorization for customer support tool calls",
+      "policies": [
+        {
+          "name": "permit_get_order",
+          "description": "Allow reading an order. Required: the engine denies by default.",
+          "statement": "// Reading an order is always allowed for an authenticated caller.\n//\n// The engine denies by default \u2014 a tool call with no matching permit is refused\n// with \"No policy applies to the request (denied by default)\". So every tool the\n// agent is supposed to use needs a permit here, or it stops working.\n//\n// `arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx` is substituted by `scripts/build_policies.py` before deploy.\n// The service leaves no choice about naming the gateway: an unconstrained\n// `resource` is rejected (\"a wildcard resource was detected\"), and so is the\n// resource *type* `resource is AgentCore::Gateway` (\"please constrain the\n// resource to a specific AgentCore::Gateway resource when creating tool-specific\n// policies\"). Since the ARN contains the account id, which must not be committed\n// (CLAUDE.md \u00a76), these files are templates and the ARN is rendered at build time\n// from the deployed stack's output.\npermit (\n  principal,\n  action == AgentCore::Action::\"orders___get_order\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx\"\n);",
+          "sourceFile": "gateway/policies/permit_get_order.cedar",
+          "validationMode": "IGNORE_ALL_FINDINGS",
+          "enforcementMode": "ACTIVE",
+          "authorizationPhase": "INITIATE"
+        },
+        {
+          "name": "permit_get_customer",
+          "description": "Allow reading a customer record. Required: the engine denies by default.",
+          "statement": "// Reading a customer record is always allowed for an authenticated caller.\n// See permit_get_order.cedar for why the gateway ARN is a `arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx`\n// placeholder rather than a literal.\npermit (\n  principal,\n  action == AgentCore::Action::\"customers___get_customer\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx\"\n);",
+          "sourceFile": "gateway/policies/permit_get_customer.cedar",
+          "validationMode": "IGNORE_ALL_FINDINGS",
+          "enforcementMode": "ACTIVE",
+          "authorizationPhase": "INITIATE"
+        },
+        {
+          "name": "refund_limit",
+          "description": "Allow a refund only up to the $1,000 ceiling (100000 cents).",
+          "statement": "// A refund is allowed only up to the $1,000 ceiling.\n//\n// `context.input` holds the tool call's arguments as the model produced them, so\n// the amount evaluated here is the amount that would actually be refunded \u2014 not\n// something the model asserts separately. The check happens at the Gateway,\n// before the Lambda is invoked at all.\n//\n// 100000 is US cents. The tool schema declares amount_cents as an integer, so\n// there is no unit ambiguity and no float comparison.\npermit (\n  principal,\n  action == AgentCore::Action::\"refunds___process_refund\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx\"\n)\nwhen { context.input.amount_cents <= 100000 };",
+          "sourceFile": "gateway/policies/refund_limit.cedar",
+          "validationMode": "FAIL_ON_ANY_FINDINGS",
+          "enforcementMode": "ACTIVE",
+          "authorizationPhase": "INITIATE"
+        },
+        {
+          "name": "forbid_refund_over_limit",
+          "description": "Forbid refunds above $1,000 outright; a forbid cannot be overridden by any permit.",
+          "statement": "// Refunds above $1,000 are forbidden outright.\n//\n// This looks redundant next to refund_limit.cedar: that permit only covers\n// amounts <= 100000, and the engine denies by default, so an over-limit call is\n// already refused today. The redundancy is the point.\n//\n// A permit-only design denies the over-limit case *by omission*. The day someone\n// adds a broad `permit (principal, action, resource)` \u2014 while debugging, or to\n// onboard a fourth tool in a hurry \u2014 the omission disappears and $5,000 refunds\n// start succeeding, with no change to any file that mentions refunds.\n//\n// In Cedar an explicit forbid always beats any permit and cannot be overridden.\n// So this statement, and not the absence of a permit, is what actually holds the\n// ceiling. The two together mean the limit survives careless edits elsewhere.\n//\n// Amounts are in US cents; 100000 is $1,000.\nforbid (\n  principal,\n  action == AgentCore::Action::\"refunds___process_refund\",\n  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:324673385933:gateway/csagent-csagent-dev-tools-bppyia5tzx\"\n)\nwhen { context.input.amount_cents > 100000 };",
+          "sourceFile": "gateway/policies/forbid_refund_over_limit.cedar",
+          "validationMode": "IGNORE_ALL_FINDINGS",
+          "enforcementMode": "ACTIVE",
+          "authorizationPhase": "INITIATE"
         }
       ]
     }
   ],
-  "policyEngines": [],
   "configBundles": [],
   "abTests": [],
   "harnesses": [],

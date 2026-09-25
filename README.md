@@ -4,10 +4,11 @@ A Strands agent deployed on AgentCore Runtime that answers order and account
 questions and processes refunds. See `CLAUDE.md` for the full architecture and
 the acceptance criteria this repo is built against.
 
-**Status: Observability complete.** Callers authenticate with a Cognito JWT, the
-agent reaches its tools through an AgentCore Gateway with retry and backoff,
-refunds are idempotent, it remembers customers across sessions, and every failure
-class is traceable to a root cause. The Cedar policy is still ahead.
+**Status: Security complete.** Callers authenticate with a Cognito JWT, the agent
+reaches its tools through an AgentCore Gateway with retry and backoff, refunds are
+idempotent, it remembers customers across sessions, every failure class is
+traceable to a root cause, and **the refund ceiling is enforced by a Cedar policy
+at the Gateway** — not by the prompt.
 
 ```
 caller ──Cognito JWT──▶ Runtime ──SigV4/MCP──▶ Gateway ──▶ 3 Lambdas ──▶ DynamoDB
@@ -48,6 +49,8 @@ cp .env.example .env      # then fill it in
 | `tools/common/` | Structured errors, JSON logging, DynamoDB access, Gateway glue, fault injection |
 | `tests/unit/` | Retry, idempotency and refund-decision tests (no AWS needed) |
 | `scripts/create_tables.py`, `scripts/seed_data.py` | DynamoDB setup (boto3) |
+| `gateway/policies/*.cedar` | Cedar policies (templates; `${GATEWAY_ARN}` is rendered at build time) |
+| `scripts/build_policies.py` | Renders the policies into `agentcore.json` — run before deploy |
 | `scripts/create_cognito.py`, `scripts/get_token.py` | Cognito pool, test user, and minting a JWT |
 | `scripts/inspect_memory.py` | Read STM events and extracted LTM records |
 | `scripts/inject_fault.py` | Turn a tool Lambda's fault injection on and off |
@@ -63,6 +66,7 @@ npm install --prefix agentcore/cdk            # first time only
 python scripts/create_tables.py               # idempotent
 python scripts/seed_data.py
 python scripts/create_cognito.py --write-config   # pool + test user; patches agentcore.json
+python scripts/build_policies.py                  # render Cedar policies (needs the gateway deployed)
 agentcore validate
 agentcore deploy --dry-run
 agentcore deploy
@@ -92,9 +96,25 @@ scripts create.
 4. Tools return `{"status": "success", ...}` or
    `{"status": "error", "code", "message", "retryable"}` — never prose.
 
-The $1,000 refund ceiling is enforced in the `process_refund` Lambda, against
-both the requested amount and the order total in DynamoDB. The system prompt
-mentions it only so the agent can explain itself; it is not the control.
+## The refund ceiling
+
+Three layers, of which only the first is persuadable:
+
+| Layer | Stops | Model can influence it? |
+|---|---|---|
+| System prompt | The model usually declines before spending a tool call | Yes — it is text |
+| **Cedar policy at the Gateway** | Any `process_refund` over $1,000 | **No** |
+| `process_refund` Lambda | Same ceiling, plus amount > order total | **No** |
+
+Policies live in [gateway/policies/](gateway/policies/) and are rendered into
+`agentcore.json` by `scripts/build_policies.py`. The engine is **default-deny**:
+a tool with no matching permit is refused, so a newly added tool stays blocked
+until someone writes a policy for it.
+
+Verified: `refund $5,000` is denied at the Gateway with the Lambda never invoked,
+even with the prompt's protections removed. `$1,000.00` is allowed and
+`$1,000.01` is denied. **[docs/security.md](docs/security.md)** has the decision
+matrix, the injection test and the open gaps.
 
 ## Reliability
 

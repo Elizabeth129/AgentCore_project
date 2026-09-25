@@ -29,7 +29,24 @@ DEPENDENCY_UNAVAILABLE = "DEPENDENCY_UNAVAILABLE"
 INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
+#
+
+# Keys the envelope owns. A payload field of the same name would silently
+# overwrite it — which is exactly what happened when `get_order` splatted an
+# order record whose own `status` was "DELAYED": callers saw `status: "DELAYED"`
+# instead of `status: "success"`, so nothing downstream could tell a successful
+# lookup from a failed one. Renaming the payload field is the fix; this guard is
+# what stops the next one being silent.
+RESERVED_FIELDS = frozenset({"status", "code", "message", "retryable"})
+
+
 def ok(**fields: Any) -> dict[str, Any]:
+    clashes = RESERVED_FIELDS & fields.keys()
+    if clashes:
+        raise ValueError(
+            f"payload field(s) {sorted(clashes)} would overwrite the result envelope; "
+            "rename them in the handler (e.g. status -> order_status)"
+        )
     return {"status": "success", **fields}
 
 
