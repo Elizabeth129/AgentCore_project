@@ -10,7 +10,7 @@ Everything here writes onto the span the caller is already inside, so a tool
 wrapper's attributes land on that tool's `execute_tool` span and are searchable
 in Transaction Search (`aws/spans`) alongside the built-in `gen_ai.*` fields.
 
-Attribute names follow CLAUDE.md §9. Nothing sensitive is recorded: identifiers
+Nothing sensitive is recorded: identifiers
 only, never tokens, card data, or PII beyond the IDs.
 """
 

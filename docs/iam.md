@@ -1,6 +1,6 @@
 # Identity and IAM
 
-Who may call what, and why each permission exists. Target state is CLAUDE.md §7.
+Who may call what, and why each permission exists.
 
 ## The one-line version
 
@@ -41,7 +41,7 @@ returns 401 and never reaches our code.
 
 `custom:customer_id` — a Cognito user attribute carried in the ID token. The
 agent reads it in `agent/identity.py` and uses it as the memory actor. This is
-the CLAUDE.md §7 requirement that the identity come from verified token claims
+the requirement that the identity come from verified token claims
 rather than from user text.
 
 Three properties follow, and each is tested:
@@ -74,7 +74,7 @@ mean guessing whose data to open.
 | `bedrock-agentcore:RetrieveMemoryRecords`, `ListMemoryRecords`, conditioned on the namespace matching `/preferences/*/` or `/facts/*/` | Long-term recall, limited to the two namespaces this project defines. |
 | `bedrock-agentcore:CreateEvent`, `GetEvent`, `ListEvents`, `ListSessions`, `ListActors`, `GetMemory`, `GetMemoryRecord`, `DeleteEvent` | Short-term memory. `DeleteEvent` is used by the Strands session manager when it rolls back a partially written turn. |
 | Logs on `log-group:/aws/bedrock-agentcore/runtimes/*` | Agent logs, and `agentcore logs` reading them back. |
-| `logs:DescribeLogGroups`, `xray:PutTraceSegments`, `xray:PutTelemetryRecords` on `*` | OTEL span export. These three actions do not support resource-level permissions, so `*` is unavoidable (CLAUDE.md §7 allows this when documented). |
+| `logs:DescribeLogGroups`, `xray:PutTraceSegments`, `xray:PutTelemetryRecords` on `*` | OTEL span export. These three actions do not support resource-level permissions, so `*` is unavoidable. |
 
 The runtime has **no** DynamoDB, Lambda, Cognito or IAM permissions. It cannot
 read an order except by asking the Gateway.
@@ -117,8 +117,6 @@ roles are the Lambdas'). Trusted by the Gateway service.
 |---|---|
 | `lambda:InvokeFunction` on `csagent-orders`, `csagent-customers`, `csagent-refunds` and their `:*` aliases | Invoking the three tool Lambdas is the Gateway's entire job. |
 
-Nothing else. This matches the CLAUDE.md §7 target exactly.
-
 The Gateway's own inbound auth is `AWS_IAM`: the agent SigV4-signs each MCP
 request with its execution role. This was chosen over a JWT/OAuth hop because it
 stores no credential at all — there is no client secret to rotate and no token
@@ -144,7 +142,7 @@ write loses to a duplicate key.
 
 | Where | Pattern | Justification |
 |---|---|---|
-| Lambda `iamPolicy` resources | `arn:aws:dynamodb:*:*:table/<name>` | `compute.iamPolicy` is raw JSON handed to CloudFormation, so it cannot carry CDK tokens, and CLAUDE.md §6 forbids hard-coded account IDs. DynamoDB is not reachable cross-account without a resource policy, so this does not widen real access. |
+| Lambda `iamPolicy` resources | `arn:aws:dynamodb:*:*:table/<name>` | `compute.iamPolicy` is raw JSON handed to CloudFormation, so it cannot carry CDK tokens. DynamoDB is not reachable cross-account without a resource policy, so this does not widen real access. |
 | Deny overlay `NotResource` | `arn:aws:bedrock:*:*:inference-profile/...` | Same reason. Widening the *exception* to a deny is the conservative direction, and a cross-account inference profile is not reachable anyway. |
 | Runtime X-Ray / `logs:DescribeLogGroups` | `*` | These actions do not support resource-level permissions. |
 

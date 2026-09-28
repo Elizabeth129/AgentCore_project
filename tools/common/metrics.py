@@ -22,7 +22,6 @@ from .config import STAGE
 
 NAMESPACE = "csagent"
 
-# The four counters CLAUDE.md §9 asks for.
 REFUNDS_PROCESSED = "RefundsProcessed"
 REFUNDS_DENIED = "RefundsDenied"
 DUPLICATE_REFUND_PREVENTED = "DuplicateRefundPrevented"

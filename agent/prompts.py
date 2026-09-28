@@ -3,7 +3,7 @@
 The prompt shapes *behaviour and tone*. It is deliberately NOT a security
 control: the refund limit mentioned here exists so the agent can set the
 customer's expectations. Enforcement lives outside the model (Cedar policy at
-the Gateway + validation in the `process_refund` Lambda). See CLAUDE.md §3.
+the Gateway + validation in the `process_refund` Lambda).
 """
 
 SYSTEM_PROMPT = """You are the customer support agent for an online retailer.

@@ -13,9 +13,7 @@ but because those two checks are what catch a *misconfiguration* — an
 from would otherwise silently serve the wrong customers.
 
 The identity that matters is `custom:customer_id`, a Cognito user attribute.
-That is what scopes the customer's memory, and it is the value CLAUDE.md §7
-requires to come from verified token claims rather than from user text. Nothing
-a customer types can change it, and no request header can override it.
+That is what scopes the customer's memory. Nothing a customer types can change it, and no request header can override it.
 """
 
 from __future__ import annotations

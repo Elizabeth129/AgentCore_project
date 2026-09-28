@@ -10,7 +10,7 @@
 // resource *type* `resource is AgentCore::Gateway` ("please constrain the
 // resource to a specific AgentCore::Gateway resource when creating tool-specific
 // policies"). Since the ARN contains the account id, which must not be committed
-// (CLAUDE.md §6), these files are templates and the ARN is rendered at build time
+// , these files are templates and the ARN is rendered at build time
 // from the deployed stack's output.
 permit (
   principal,

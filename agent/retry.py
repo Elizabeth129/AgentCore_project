@@ -4,7 +4,7 @@ The rule this module enforces is that **only transient failures are retried**.
 A tool that says "this order does not exist" or "that amount is over the limit"
 will say the same thing however many times it is asked, so repeating the call
 wastes time and, for anything that writes, risks doing the work twice. The tools
-make that distinction explicit with a `retryable` flag (CLAUDE.md §8), and the
+make that distinction explicit with a `retryable` flag, and the
 classification here is the only place that reads it.
 
 Backoff uses **full jitter** — a delay drawn uniformly from `[0, cap]` rather
@@ -23,7 +23,6 @@ import random
 import time
 from typing import Any, Callable
 
-# CLAUDE.md §8: at most 3 attempts.
 MAX_ATTEMPTS = 3
 BASE_DELAY_SECONDS = 0.25
 MAX_DELAY_SECONDS = 4.0

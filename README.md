@@ -1,8 +1,7 @@
 # Customer Support Agent on Amazon Bedrock AgentCore
 
 A Strands agent deployed on AgentCore Runtime that answers order and account
-questions and processes refunds. See `CLAUDE.md` for the full architecture and
-the acceptance criteria this repo is built against.
+questions and processes refunds. 
 
 **Status: Security complete.** Callers authenticate with a Cognito JWT, the agent
 reaches its tools through an AgentCore Gateway with retry and backoff, refunds are

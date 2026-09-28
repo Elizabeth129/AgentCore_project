@@ -10,7 +10,7 @@ from botocore.config import Config
 
 from . import errors
 
-# Adaptive retries with backoff for throttling and transient 5xx (CLAUDE.md §8).
+# Adaptive retries with backoff for throttling and transient 5xx.
 # The client is built once per container so the retry state is reused.
 _CONFIG = Config(
     retries={"max_attempts": 3, "mode": "adaptive"},

@@ -82,7 +82,7 @@ def build_gateway_client(*, expose_to_model: bool = False) -> MCPClient:
     By default every Gateway tool is hidden from the model. The agent exposes
     its own wrappers instead (`agent/agent.py`), which is what lets each call
     carry retry with backoff, a timeout, and — for refunds — an idempotency key
-    the model cannot choose. See CLAUDE.md §3 and §8.
+    the model cannot choose. 
     """
     return MCPClient(
         url=gateway_url(),

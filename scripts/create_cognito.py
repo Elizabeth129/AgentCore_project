@@ -11,8 +11,7 @@ reads it back from there. Re-running the script reuses what already exists.
     python scripts/create_cognito.py                  # create/repair
     python scripts/create_cognito.py --write-config   # also patch agentcore.json
 
-Cognito is not part of the AgentCore CDK schema, so it is scripted here
-(CLAUDE.md §4).
+Cognito is not part of the AgentCore CDK schema, so it is scripted here.
 """
 
 from __future__ import annotations

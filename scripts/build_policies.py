@@ -10,7 +10,7 @@ one concrete gateway:
     specific AgentCore::Gateway resource when creating tool-specific policies"
 
 The gateway ARN contains the account id, which must not be hard-coded into
-committed files (CLAUDE.md §6). So the `.cedar` files carry a `${GATEWAY_ARN}`
+committed files. So the `.cedar` files carry a `${GATEWAY_ARN}`
 placeholder and this script substitutes the ARN of the *deployed* gateway, read
 from the CloudFormation stack output. A fresh account renders its own ARN.
 

@@ -2,7 +2,7 @@
 
 One JSON object per line so CloudWatch Logs Insights can filter on the fields
 directly. Only identifiers are logged — never tokens, card data, or PII beyond
-the IDs listed in CLAUDE.md §6.
+the IDs.
 """
 
 from __future__ import annotations

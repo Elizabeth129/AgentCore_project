@@ -1,8 +1,7 @@
 """Create the Orders, Customers and Refunds DynamoDB tables.
 
 The AgentCore CDK app models AgentCore resources only, so the data store is
-provisioned with boto3 here (CLAUDE.md §4 allows scripted setup for what the
-IaC does not cover). Safe to re-run: existing tables are left alone.
+provisioned with boto3 here. Safe to re-run: existing tables are left alone.
 
     python scripts/create_tables.py
 """
